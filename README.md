@@ -105,7 +105,7 @@ The following steps are required to deploy the infrastructure from the command l
    BASE_NAME=<base resource name, between 6 and 8 lowercase characters, all DNS names will include this text, so it must be unique.>
    ```
 
-1. In the subscription's Microsoft Entra tenant, create a **single-tenant** app registration for the web app. Record its application (client) ID. Choose the object IDs of the users permitted to access the app (for guest users, use their object IDs in this tenant). The deployment requires a nonempty allowlist; update and redeploy it to add or remove users. App Service checks this list in addition to validating the Microsoft identity.
+1. In the subscription's Microsoft Entra tenant, create a **single-tenant** app registration for the web app. Record its application (client) ID. Choose the object IDs of the users permitted to access the app (for guest users, use their object IDs in this tenant). The deployment requires a nonempty allowlist. To add or remove users, update the list and redeploy, then reapply the agent settings in section 4: redeployment resets them to placeholder values. App Service checks this list in addition to validating the Microsoft identity.
 
    ```bash
    SIGN_IN_CLIENT_ID=<application-client-id>

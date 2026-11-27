@@ -24,7 +24,8 @@ function setup() {
     }
     class Utterance { constructor(text) { this.text = text; } }
     const synth = {
-        getVoices: () => [], cancel() {},
+        cancels: 0,
+        getVoices: () => [], cancel() { this.cancels++; },
         speak(utterance) { spoken = utterance; }
     };
     const requests = [];
@@ -109,4 +110,29 @@ test("request and dictation errors retain input and previous results", async () 
     app.recognition.onend();
     assert.equal(e["coach-input"].value, "Try again");
     assert.match(e["coach-status"].textContent, /Dictation failed/);
+});
+
+test("replacing a dictated draft is typed input and recording stops playback", async () => {
+    const app = setup(), e = app.elements;
+    e["coach-record"].fire("click");
+    const alternative = [{ transcript: "Hello" }];
+    alternative.isFinal = true;
+    app.recognition.onresult({ resultIndex: 0, results: [alternative] });
+    app.recognition.onend();
+    e["coach-input"].selectionStart = 0;
+    e["coach-input"].selectionEnd = e["coach-input"].value.length;
+    e["coach-input"].fire("beforeinput", { inputType: "insertText" });
+    e["coach-input"].value = "Typed replacement";
+    e["coach-input"].fire("input");
+    const pending = e["coach-form"].fire("submit");
+    app.respond(true, "Replacement");
+    await pending;
+    assert.equal(app.spoken, undefined);
+    e["coach-play"].fire("click");
+    const cancels = app.synth.cancels;
+    e["coach-record"].fire("click");
+    assert.equal(app.synth.cancels, cancels + 1);
+    assert.equal(e["coach-play"].disabled, true);
+    app.recognition.onend();
+    assert.equal(e["coach-play"].disabled, false);
 });

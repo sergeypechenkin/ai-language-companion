@@ -15,6 +15,8 @@
         $("coach-speech-language").disabled = processing || recording;
         input.readOnly = processing || recording;
         record.textContent = recording ? "Stop dictation" : "Start dictation";
+        if (recording || processing) play.disabled = true;
+        else if (stop.disabled) play.disabled = false;
     }
 
     function stopPlayback() {
@@ -22,7 +24,7 @@
         clearTimeout(playbackTimer);
         if (window.speechSynthesis) window.speechSynthesis.cancel();
         stop.disabled = true;
-        play.disabled = false;
+        play.disabled = recording || processing;
     }
 
     function playResult(automatic = false) {
@@ -87,12 +89,17 @@
         if (!input.value.trim()) dictated = false;
         updateControls();
     });
+    input.addEventListener("beforeinput", event => {
+        if (event.inputType?.startsWith("insert") && input.selectionStart === 0 &&
+            input.selectionEnd === input.value.length) dictated = false;
+    });
     record.addEventListener("click", () => {
         if (recording) {
             recognition.stop();
             return;
         }
         if (!Recognition) return;
+        stopPlayback();
         recognition = new Recognition();
         recognition.lang = $("coach-speech-language").value;
         recognition.interimResults = false;
@@ -146,6 +153,7 @@
             improved.textContent = data.data;
             resultLanguage = selectedLanguage;
             result.hidden = false;
+            dictated = false;
             status.textContent = "Ready.";
             if (wasDictated && !$("coach-panel").hidden) playResult(true);
         } catch {

@@ -14,6 +14,15 @@ param baseName string
 @minLength(36)
 param yourPrincipalId string
 
+@description('Application (client) ID of the single-tenant Microsoft Entra app registration used for sign-in.')
+@minLength(36)
+@maxLength(36)
+param signInClientId string
+
+@description('Microsoft Entra object IDs of users authorized to access the application.')
+@minLength(1)
+param authorizedUserObjectIds array
+
 @description('Set to true to opt-out of deployment telemetry.')
 param telemetryOptOut bool = false
 
@@ -96,6 +105,8 @@ module deployWebApp 'web-app.bicep' = {
     existingWebApplicationInsightsResourceName: deployApplicationInsights.outputs.applicationInsightsName
     existingFoundryResourceName: deployFoundry.outputs.foundryName
     existingFoundryProjectName: deployFoundryProject.outputs.aiAgentProjectName
+    signInClientId: signInClientId
+    authorizedUserObjectIds: authorizedUserObjectIds
   }
 }
 

@@ -29,6 +29,15 @@ param existingFoundryResourceName string
 @minLength(2)
 param existingFoundryProjectName string
 
+@description('Application (client) ID of the Microsoft Entra app registration used for sign-in.')
+@minLength(36)
+@maxLength(36)
+param signInClientId string
+
+@description('Microsoft Entra object IDs of users authorized to access the application.')
+@minLength(1)
+param authorizedUserObjectIds array
+
 // variables
 var appName = 'app-${baseName}'
 
@@ -136,11 +145,52 @@ resource webApp 'Microsoft.Web/sites@2024-11-01' = {
     properties: {
       APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsights.properties.ConnectionString
       AZURE_CLIENT_ID: appServiceManagedIdentity.properties.clientId
+      OVERRIDE_USE_MI_FIC_ASSERTION_CLIENTID: appServiceManagedIdentity.properties.clientId
       ApplicationInsightsAgent_EXTENSION_VERSION: '~3'
       AIProjectEndpoint: foundry::project.properties.endpoints['AI Foundry API']
       AIAgentId: 'Not yet set' // Will be set once the agent is created
       AIAgentVersion: 'Not yet set' // Will be set once the agent is created
       XDT_MicrosoftApplicationInsights_Mode: 'Recommended'
+    }
+  }
+
+  @description('Require Microsoft Entra authentication and an explicitly authorized user.')
+  resource authSettings 'config' = {
+    name: 'authsettingsV2'
+    properties: {
+      platform: {
+        enabled: true
+      }
+      globalValidation: {
+        requireAuthentication: true
+        unauthenticatedClientAction: 'RedirectToLoginPage'
+        redirectToProvider: 'azureactivedirectory'
+      }
+      httpSettings: {
+        requireHttps: true
+      }
+      identityProviders: {
+        azureActiveDirectory: {
+          enabled: true
+          registration: {
+            clientId: signInClientId
+            clientSecretSettingName: 'OVERRIDE_USE_MI_FIC_ASSERTION_CLIENTID'
+            openIdIssuer: '${environment().authentication.loginEndpoint}${tenant().tenantId}/v2.0'
+          }
+          login: {
+            loginParameters: [
+              'prompt=select_account'
+            ]
+          }
+          validation: {
+            defaultAuthorizationPolicy: {
+              allowedPrincipals: {
+                identities: authorizedUserObjectIds
+              }
+            }
+          }
+        }
+      }
     }
   }
 

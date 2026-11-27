@@ -24,6 +24,7 @@
 
     body {
         display: flex;
+        flex-direction: column;
         justify-content: center;
         align-items: center;
         height: 100vh;
@@ -169,6 +170,16 @@
     .msger-chat {
         background-color: #ffffff;
     }
+
+    [hidden] { display: none !important; }
+    .modes { margin-top: 10px; }
+    .modes button, .coach button, .coach select { padding: 8px; }
+    .coach { padding: 16px; overflow-y: auto; display: block; }
+    .coach label, .coach textarea { display: block; margin: 8px 0; }
+    .coach textarea { width: 100%; min-height: 120px; padding: 8px; }
+    .coach-results { display: flex; gap: 16px; margin: 16px 0; }
+    .coach-results > div { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    @@media (max-width: 600px) { .coach-results { flex-direction: column; } }
   </style>
   
   <script type="text/javascript">
@@ -266,7 +277,11 @@
 </head>
 
 <body>
-  <section class="msger" aria-label="Chat interface">
+  <nav class="modes" aria-label="Mode">
+    <button type="button" id="chat-mode" aria-pressed="true">Chat</button>
+    <button type="button" id="coach-mode" aria-pressed="false">Coach</button>
+  </nav>
+  <section class="msger" id="chat-panel" aria-label="Chat interface">
     <header class="msger-header">
       <h1 class="msger-header-title" aria-label="Chat title">
         <i class="fas fa-comment-alt" aria-hidden="true"></i>
@@ -292,6 +307,48 @@
       <button id="sendButton" class="msger-send-btn" type="submit">Send</button>
     </form>
   </section>
+  <section class="msger coach" id="coach-panel" aria-label="Coach" hidden>
+    <h1>Coach</h1>
+    <p>Type or dictate, review your text, then press Send.</p>
+    <form id="coach-form">
+      <label for="coach-language">Learning language</label>
+      <select id="coach-language">
+        <option value="en-US">English</option>
+        <option value="es-ES">Spanish</option>
+        <option value="fr-FR">French</option>
+        <option value="de-DE">German</option>
+        <option value="it-IT">Italian</option>
+        <option value="pt-BR">Brazilian Portuguese</option>
+        <option value="ja-JP">Japanese</option>
+        <option value="zh-CN">Simplified Chinese</option>
+      </select>
+      <label for="coach-speech-language">Dictation language</label>
+      <select id="coach-speech-language">
+        <option value="en-US">English</option>
+        <option value="es-ES">Spanish</option>
+        <option value="fr-FR">French</option>
+        <option value="de-DE">German</option>
+        <option value="it-IT">Italian</option>
+        <option value="pt-BR">Brazilian Portuguese</option>
+        <option value="ja-JP">Japanese</option>
+        <option value="zh-CN">Simplified Chinese</option>
+      </select>
+      <label for="coach-input">Your text</label>
+      <textarea id="coach-input" maxlength="8000"></textarea>
+      <button type="button" id="coach-record">Start dictation</button>
+      <button type="submit" id="coach-send">Send</button>
+    </form>
+    <p id="coach-status" role="status" aria-live="polite"></p>
+    <div id="coach-result" hidden>
+      <div class="coach-results">
+        <div><h2>Original</h2><p id="coach-original"></p></div>
+        <div><h2>Improved</h2><p id="coach-improved"></p></div>
+      </div>
+      <button type="button" id="coach-play">Play</button>
+      <button type="button" id="coach-stop" disabled>Stop</button>
+    </div>
+  </section>
+  <script src="/js/coach.js"></script>
 </body>
 
 </html>

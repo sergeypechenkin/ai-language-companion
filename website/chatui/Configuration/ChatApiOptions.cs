@@ -12,4 +12,8 @@ public class ChatApiOptions
 
     [Required]
     public string AIAgentVersion { get; init; } = default!;
+
+    public string? CoachAgentId { get; init; }
+
+    public string? CoachAgentVersion { get; init; }
 }

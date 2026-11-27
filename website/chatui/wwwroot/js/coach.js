@@ -147,7 +147,7 @@
             resultLanguage = selectedLanguage;
             result.hidden = false;
             status.textContent = "Ready.";
-            if (wasDictated) playResult(true);
+            if (wasDictated && !$("coach-panel").hidden) playResult(true);
         } catch {
             status.textContent = "Coach could not process your text. Please try again; your text is retained.";
         } finally {
@@ -161,4 +161,5 @@
         status.textContent = "Playback stopped.";
     });
     updateControls();
+    if (!Recognition) status.textContent = "Dictation is not supported in this browser. You can still type.";
 })();

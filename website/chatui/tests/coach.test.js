@@ -43,7 +43,9 @@ function setup() {
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../wwwroot/js/coach.js"), "utf8"), context);
     return { elements, requests, synth, get recognition() { return recognition; },
         get spoken() { return spoken; }, get timer() { return timer; },
-        respond: (ok, data) => respond({ ok, json: async () => ({ data }) }) };
+        respond: (ok, data) => respond({ ok, json: async () => ({ data }) }),
+        respondError: body => respond({ ok: false, json: async () => body }),
+        respondInvalidJson: () => respond({ ok: false, json: async () => { throw new SyntaxError("Invalid JSON"); } }) };
 }
 
 test("typed input waits for Send, sends selected language once, and plays only on demand", async () => {
@@ -63,6 +65,7 @@ test("typed input waits for Send, sends selected language once, and plays only o
     await pending;
     assert.equal(e["coach-original"].textContent, "Hello");
     assert.equal(e["coach-improved"].textContent, "Hola");
+    assert.equal(e["coach-improved"].lang, "es-ES");
     assert.equal(app.spoken, undefined);
     e["coach-play"].fire("click");
     assert.equal(app.spoken.text, "Hola");
@@ -135,4 +138,82 @@ test("replacing a dictated draft is typed input and recording stops playback", a
     assert.equal(e["coach-play"].disabled, true);
     app.recognition.onend();
     assert.equal(e["coach-play"].disabled, false);
+});
+
+test("server errors are displayed as text while the draft and previous result are retained", async () => {
+    const app = setup(), e = app.elements;
+    e["coach-input"].value = "Hello";
+    e["coach-input"].fire("input");
+    let pending = e["coach-form"].fire("submit");
+    app.respond(true, "Hola");
+    await pending;
+    e["coach-input"].value = "Try again";
+    e["coach-input"].fire("input");
+    pending = e["coach-form"].fire("submit");
+    app.respondError({ error: "Coach is not configured. Please contact the administrator." });
+    await pending;
+    assert.equal(e["coach-status"].textContent,
+        "Coach is not configured. Please contact the administrator. Your text is retained.");
+    assert.equal(e["coach-input"].value, "Try again");
+    assert.equal(e["coach-original"].textContent, "Hello");
+    assert.equal(e["coach-improved"].textContent, "Hola");
+    assert.equal(e["coach-send"].disabled, false);
+});
+
+test("invalid or missing server error bodies use the generic fallback", async () => {
+    const app = setup(), e = app.elements;
+    e["coach-input"].value = "Hello";
+    for (const body of [null, {}, { error: "" }, { error: 503 }]) {
+        const pending = e["coach-form"].fire("submit");
+        app.respondError(body);
+        await pending;
+        assert.match(e["coach-status"].textContent, /Please try again; your text is retained/);
+    }
+    const pending = e["coach-form"].fire("submit");
+    app.respondInvalidJson();
+    await pending;
+    assert.match(e["coach-status"].textContent, /Please try again; your text is retained/);
+    assert.equal(e["coach-input"].value, "Hello");
+});
+
+test("resubmitting an unchanged dictated draft autoplays in the newly selected language", async () => {
+    const app = setup(), e = app.elements;
+    e["coach-record"].fire("click");
+    const alternative = [{ transcript: "Hello" }];
+    alternative.isFinal = true;
+    app.recognition.onresult({ resultIndex: 0, results: [alternative] });
+    app.recognition.onend();
+    let pending = e["coach-form"].fire("submit");
+    app.respond(true, "Hola");
+    await pending;
+    const firstPlayback = app.spoken;
+    e["coach-language"].value = "fr-FR";
+    pending = e["coach-form"].fire("submit");
+    app.respond(true, "Bonjour");
+    await pending;
+    assert.notEqual(app.spoken, firstPlayback);
+    assert.equal(app.spoken.text, "Bonjour");
+    assert.equal(app.spoken.lang, "fr-FR");
+    assert.equal(e["coach-improved"].lang, "fr-FR");
+});
+
+test("clearing a submitted dictated draft resets autoplay for the next typed draft", async () => {
+    const app = setup(), e = app.elements;
+    e["coach-record"].fire("click");
+    const alternative = [{ transcript: "Hello" }];
+    alternative.isFinal = true;
+    app.recognition.onresult({ resultIndex: 0, results: [alternative] });
+    app.recognition.onend();
+    let pending = e["coach-form"].fire("submit");
+    app.respond(true, "Hola");
+    await pending;
+    const firstPlayback = app.spoken;
+    e["coach-input"].value = "";
+    e["coach-input"].fire("input");
+    e["coach-input"].value = "Typed draft";
+    e["coach-input"].fire("input");
+    pending = e["coach-form"].fire("submit");
+    app.respond(true, "Texto escrito");
+    await pending;
+    assert.equal(app.spoken, firstPlayback);
 });

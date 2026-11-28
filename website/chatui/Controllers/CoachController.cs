@@ -24,7 +24,7 @@ public class CoachController(AIProjectClient project, IOptionsMonitor<ChatApiOpt
     public record CoachRequest(string? Text, string? Language);
 
     [HttpPost]
-    [RequestSizeLimit(32768)]
+    [RequestSizeLimit(65536)]
     public async Task<IActionResult> Improve([FromBody] CoachRequest request, CancellationToken cancellationToken)
     {
         Response.Headers.CacheControl = "no-store";

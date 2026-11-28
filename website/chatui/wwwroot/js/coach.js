@@ -146,14 +146,19 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ text, language: selectedLanguage })
             });
-            if (!response.ok) throw new Error("request failed");
-            const data = await response.json();
-            if (typeof data.data !== "string" || !data.data.trim()) throw new Error("empty response");
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                status.textContent = typeof data?.error === "string" && data.error.trim()
+                    ? `${data.error} Your text is retained.`
+                    : "Coach could not process your text. Please try again; your text is retained.";
+                return;
+            }
+            if (typeof data?.data !== "string" || !data.data.trim()) throw new Error("empty response");
             original.textContent = text;
             improved.textContent = data.data;
+            improved.lang = selectedLanguage;
             resultLanguage = selectedLanguage;
             result.hidden = false;
-            dictated = false;
             status.textContent = "Ready.";
             if (wasDictated && !$("coach-panel").hidden) playResult(true);
         } catch {

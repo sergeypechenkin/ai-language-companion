@@ -217,3 +217,51 @@ test("clearing a submitted dictated draft resets autoplay for the next typed dra
     await pending;
     assert.equal(app.spoken, firstPlayback);
 });
+
+for (const started of [false, true]) {
+    test(`switching to Chat resets ${started ? "active" : "starting"} playback without losing the result`, async () => {
+        const app = setup(), e = app.elements;
+        e["coach-input"].value = "Hello";
+        const pending = e["coach-form"].fire("submit");
+        app.respond(true, "Hola");
+        await pending;
+        e["coach-play"].fire("click");
+        const utterance = app.spoken;
+        const timeout = app.timer;
+        if (started) utterance.onstart();
+        const cancels = app.synth.cancels;
+        e["chat-mode"].fire("click");
+        assert.equal(app.synth.cancels, cancels + 1);
+        assert.equal(app.timer, null);
+        assert.equal(e["coach-stop"].disabled, true);
+        assert.equal(e["coach-play"].disabled, false);
+        utterance.onstart();
+        utterance.onend();
+        utterance.onerror();
+        timeout();
+        e["coach-mode"].fire("click");
+        assert.equal(e["coach-status"].textContent, "Playback stopped.");
+        assert.equal(e["coach-original"].textContent, "Hello");
+        assert.equal(e["coach-improved"].textContent, "Hola");
+        e["coach-play"].fire("click");
+        assert.notEqual(app.spoken, utterance);
+        assert.equal(app.spoken.text, "Hola");
+    });
+}
+
+test("switching modes preserves processing and server error status", async () => {
+    const app = setup(), e = app.elements;
+    e["coach-input"].value = "Hello";
+    const pending = e["coach-form"].fire("submit");
+    e["chat-mode"].fire("click");
+    e["coach-mode"].fire("click");
+    assert.equal(e["coach-status"].textContent, "Processing…");
+    assert.equal(e["coach-send"].disabled, true);
+    app.respondError({ error: "Coach is not configured. Please contact the administrator." });
+    await pending;
+    const error = e["coach-status"].textContent;
+    e["chat-mode"].fire("click");
+    e["coach-mode"].fire("click");
+    assert.equal(e["coach-status"].textContent, error);
+    assert.equal(e["coach-input"].value, "Hello");
+});

@@ -77,6 +77,8 @@
         $("chat-mode").setAttribute("aria-pressed", "true");
         $("coach-mode").setAttribute("aria-pressed", "false");
         if (recording) recognition.stop();
+        if (!stop.disabled && (status.textContent === "Playing." || status.textContent === "Starting playback…"))
+            status.textContent = "Playback stopped.";
         stopPlayback();
     });
     $("coach-mode").addEventListener("click", () => {

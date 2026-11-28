@@ -16,7 +16,7 @@ fi
 source "$CONFIG_FILE"
 
 # Validate required variables
-for var in BASE_NAME LOCATION RESOURCE_GROUP; do
+for var in BASE_NAME LOCATION RESOURCE_GROUP SIGN_IN_CLIENT_ID AUTHORIZED_USER_OBJECT_IDS; do
   if [[ -z "${!var}" ]]; then
     echo "ERROR: Required variable $var is not set in $CONFIG_FILE"
     exit 1
@@ -38,4 +38,6 @@ PRINCIPAL_ID=$(az ad signed-in-user show --query id -o tsv | tr -d '\r')
 az deployment group create -f ./infra-as-code/bicep/main.bicep \
   -g $RESOURCE_GROUP \
   -p baseName=${BASE_NAME} \
-  -p yourPrincipalId=$PRINCIPAL_ID
+  -p yourPrincipalId=$PRINCIPAL_ID \
+  -p signInClientId="$SIGN_IN_CLIENT_ID" \
+  -p authorizedUserObjectIds="$AUTHORIZED_USER_OBJECT_IDS"

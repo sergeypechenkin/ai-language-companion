@@ -25,7 +25,7 @@ Microsoft Foundry hosts the Foundry Agent Service as a capability. Foundry Agent
 The following workflow corresponds to the previous diagram:
 
 1. An application user interacts with a web application that contains chat functionality. They issue an HTTPS request to the App Service default domain on azurewebsites.net. This domain automatically points to the App Service built-in public IP address. The Transport Layer Security connection is established from the client directly to App Service. Azure fully manages the certificate.
-1. The App Service feature called Easy Auth ensures that the user who accesses the website is authenticated via Microsoft Entra ID.
+1. The App Service feature called Easy Auth authenticates users via Microsoft Entra ID and permits only explicitly authorized user object IDs.
 1. The application code deployed to App Service handles the request and renders a chat UI for the application user. The chat UI code connects to APIs that are also hosted in that same App Service instance. The API code connects to an agent in Microsoft Foundry through the [Microsoft Agent Framework](https://github.com/microsoft/agent-framework), which calls the [OpenAI Conversations](https://learn.microsoft.com/rest/api/aifoundry/aiproject#conversations) and [Responses](https://learn.microsoft.com/rest/api/aifoundry/aiproject#responses-94) APIs under the hood.
 1. Foundry Agent Service connects to Azure AI Search to fetch grounding data for the query. The grounding data is added to the prompt that's sent to the Azure OpenAI model in the next step.
 1. Foundry Agent Service connects to an Azure OpenAI model that's deployed in Foundry and sends the prompt that includes the relevant grounding data and chat context.
@@ -105,6 +105,13 @@ The following steps are required to deploy the infrastructure from the command l
    BASE_NAME=<base resource name, between 6 and 8 lowercase characters, all DNS names will include this text, so it must be unique.>
    ```
 
+1. In the subscription's Microsoft Entra tenant, create a **single-tenant** app registration for the web app. Record its application (client) ID. Choose the object IDs of the users permitted to access the app (for guest users, use their object IDs in this tenant). The deployment requires a nonempty allowlist. To add or remove users, update the list and redeploy, then reapply the agent settings in section 4: redeployment resets them to placeholder values. App Service checks this list in addition to validating the Microsoft identity.
+
+   ```bash
+   SIGN_IN_CLIENT_ID=<application-client-id>
+   AUTHORIZED_USER_OBJECT_IDS='["<user-object-id>"]'
+   ```
+
 1. Create a resource group and deploy the infrastructure.
 
    *There is an optional tracking ID on this deployment. To opt out of its use, add the following parameter to the deployment code below: `-p telemetryOptOut true`.*
@@ -119,8 +126,17 @@ The following steps are required to deploy the infrastructure from the command l
    az deployment group create -f ./infra-as-code/bicep/main.bicep \
      -g $RESOURCE_GROUP \
      -p baseName=${BASE_NAME} \
-     -p yourPrincipalId=$PRINCIPAL_ID
+     -p yourPrincipalId=$PRINCIPAL_ID \
+     -p signInClientId="$SIGN_IN_CLIENT_ID" \
+     -p authorizedUserObjectIds="$AUTHORIZED_USER_OBJECT_IDS"
    ```
+
+1. Complete the app registration before signing in:
+
+   - In App Service, copy the web app's actual default domain. In the app registration's **Authentication** page, add a **Web** redirect URI `https://<app-domain>/.auth/login/aad/callback`. Do not enable implicit grant.
+   - In the app registration, add a federated identity credential of type **Other issuer** for the App Service user-assigned managed identity `id-app-${BASE_NAME}`. Use issuer `https://login.microsoftonline.com/<tenant-id>/v2.0`, the managed identity's **principal (object) ID** as subject, and `api://AzureADTokenExchange` as audience. The managed identity and app registration must be in the same tenant. See [configure a managed identity as a federated credential for App Service authentication](https://learn.microsoft.com/azure/app-service/configure-authentication-provider-aad#use-a-managed-identity-instead-of-a-secret).
+
+   Easy Auth uses this managed identity for the authorization-code flow, without a client secret. It prompts for account selection so it cannot silently choose a different account; an existing Microsoft session can then be reused without entering credentials. Microsoft may still request credentials, MFA, or consent when necessary. Only allowlisted accounts can access the site or chat API. Local execution does not provide the App Service authentication boundary and should not be exposed publicly.
 
 ### 2. Deploy an agent in the Foundry Agent Service
 
@@ -186,10 +202,12 @@ Workloads build chat functionality into an application. Those interfaces usually
    az webapp config appsettings set -g $RESOURCE_GROUP -n $APPSERVICE_NAME --settings AIAgentId=${AGENT_ID} AIAgentVersion=${AGENT_VERSION}
    ```
 
-1. Deploy the ChatUI web app
+1. Publish and deploy the current ChatUI source (the checked-in zip may be outdated):
 
    ```bash
-   az webapp deploy -g $RESOURCE_GROUP -n $APPSERVICE_NAME --type zip --src-url https://github.com/Azure-Samples/microsoft-foundry-basic/raw/refs/heads/main/website/chatui.zip
+   dotnet publish website/chatui/chatui.csproj -c Release -o /tmp/chatui-publish
+   (cd /tmp/chatui-publish && zip -qr /tmp/chatui-publish.zip .)
+   az webapp deploy -g $RESOURCE_GROUP -n $APPSERVICE_NAME --type zip --src-path /tmp/chatui-publish.zip
    ```
 
 > Sometimes the prior command will fail with a `GatewayTimeout`. If you receive that error, you're safe to simply execute the command again.
@@ -205,6 +223,8 @@ az webapp browse -g $RESOURCE_GROUP -n $APPSERVICE_NAME
 ```
 
 Once you're there, ask your solution a question. Your question should involve something that would only be known if the RAG process included context from Bing such as recent weather or events.
+
+To check sign-in, try an allowed account with an active Microsoft session, then a browser with no session. Try multiple signed-in accounts and confirm the account picker is shown, and try an account not in the allowlist to confirm access is denied. Use **Sign out** and confirm the app session ends. Also check a user subject to MFA or consent and confirm Microsoft prompts when required.
 
 ## :broom: Clean up resources
 
